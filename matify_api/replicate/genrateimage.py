@@ -23,6 +23,7 @@ from matify_api.models import TrainedModel ,Gallery
 
 from matify_api.serializers import TrainedModelSerializer ,GallerySerializer
 from django.utils.dateparse import parse_datetime
+from matify_api.services.uploadtos3 import upload_file_to_s3
 
 from matify_api.models import TrainedModel
 
@@ -35,9 +36,8 @@ class ReplicatePredictionView(APIView):
 
         # Extract data
         version = request.data.get("version").split(":")[1]
-        # print(version)
-        # print(input_data)
         input_data = request.data.get("input")
+        print(version)
         if not version or not input_data:
             return Response(
                 {"error": "Both 'version' and 'input' are required."},
@@ -49,7 +49,9 @@ class ReplicatePredictionView(APIView):
             "Content-Type": "application/json",
             "Prefer": "wait"
         }
-
+        input_data["num_inference_steps"] = 50
+        # input_data["model"] = "dev"
+       
         payload = {
             "version": version,
             "input":input_data
@@ -58,6 +60,11 @@ class ReplicatePredictionView(APIView):
         try:
             r = requests.post("https://api.replicate.com/v1/predictions", json=payload, headers=headers)
             r.raise_for_status()
-            return Response(r.json(), status=r.status_code)
+            response_data = r.json()
+            s3_url = upload_file_to_s3(response_data['output'][0])
+            response_data['output'] = [s3_url]
+            
+            return Response(response_data, status=r.status_code)
+
         except requests.exceptions.RequestException as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

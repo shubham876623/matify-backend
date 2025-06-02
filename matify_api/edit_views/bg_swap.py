@@ -21,8 +21,8 @@ class BackgroundReplacementView(APIView):
             public_url = image_url
         else:
             return Response({"error": "No image or image URL provided"}, status=400)
-        print(public_url)
-        print(prompt)
+        # print(public_url)
+        # print(prompt)
         endpoint_id = "burkgsza0ugbt0"
         input_payload = {
             "input": {
@@ -32,7 +32,8 @@ class BackgroundReplacementView(APIView):
              
             }
         }
+        print(input_payload)
         result = call_runpod_sync(endpoint_id, input_payload)
-        print(result)
+        # print(result)
         return Response(result['output'][0]['image'])
 

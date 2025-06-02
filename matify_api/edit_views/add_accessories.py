@@ -29,17 +29,24 @@ class AddAccessoriesView(APIView):
 
         object_image_url = upload_file_to_s3(object_image_url)
         
-       
+        input_payload  =  {
+                   "input": {
+                    "subject_image":object_image_url,
+                    "model_image": main_image_url,
+                    "mask_image": mask_image_url ,
+                    "image_format":"jpeg"
+        }
+        }
       
-        input_payload =  {
-        "input": {
-            "subject_image": object_image_url,
-            "model_image": main_image_url,
-            "mask_image": mask_image_url,
-            "prompt":"exaclty where the mask is pointing"
+        # input_payload =  {
+        # "input": {
+        #     "subject_image": object_image_url,
+        #     "model_image": main_image_url,
+        #     "mask_image": mask_image_url,
+        #     "prompt":"exaclty where the mask is pointing"
            
-        }
-        }
+        # }
+        # }
         print(input_payload)
         result = call_runpod_sync(endpoint_id, input_payload)
         # result  = json.dumps(result, indent=4)

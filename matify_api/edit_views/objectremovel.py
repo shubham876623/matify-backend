@@ -32,6 +32,11 @@ class ObjectRemoverView(APIView):
             "input": {
                 "image": main_image_url,
                 "mask":mask_url,
+                 "mask_threshold": 240,
+                    "gaussblur_radius": 8,
+                    "image_format": "jpeg",
+                    "image_quality": 95
+
                
             }
         }
