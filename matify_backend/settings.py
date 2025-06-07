@@ -16,6 +16,26 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 
+# settings.py
+CORS_ALLOWED_ORIGINS = [
+    "https://app.matify.io",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# Optional: restrict only necessary methods
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://app.matify.io",
+]
 
 
 INSTALLED_APPS = [
