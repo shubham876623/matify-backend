@@ -61,7 +61,7 @@ REST_FRAMEWORK = {
 }
 
 # ──────────────── CORS Settings ──────────────── #
-CORS_ALLOW_CREDENTIALS = True
+#CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://app.matify.io",
 ]
