@@ -37,7 +37,7 @@ class ReplicatePredictionView(APIView):
         # Extract data
         version = request.data.get("version").split(":")[1]
         input_data = request.data.get("input")
-        print(version)
+       
         if not version or not input_data:
             return Response(
                 {"error": "Both 'version' and 'input' are required."},
@@ -50,8 +50,11 @@ class ReplicatePredictionView(APIView):
             "Prefer": "wait"
         }
         input_data["num_inference_steps"] = 50
-        # input_data["model"] = "dev"
-       
+        
+        if "jpeg" in  input_data['format'] :
+            input_data["output_format"] = "jpg"
+        else:
+            input_data["output_format"] = input_data['format']
         payload = {
             "version": version,
             "input":input_data
