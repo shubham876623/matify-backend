@@ -25,7 +25,7 @@ class ColorCorrectionView(APIView):
                 
             }
         }
-
+        print(payload)
         endpoint_id = "o9ky7zq0ib4bsb"
         result = call_runpod_sync(endpoint_id, payload)
         

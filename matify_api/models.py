@@ -18,7 +18,7 @@ class TrainedModel(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     training_id = models.CharField(max_length=255, unique=True)
     trigger_word = models.CharField(max_length=100)
-    
+    image_url = models.URLField(max_length=1000, null=True, blank=True)
     status = models.CharField(max_length=50, default="starting")
     version_id = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(null=True, blank=True)

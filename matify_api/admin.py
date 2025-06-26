@@ -29,7 +29,7 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(TrainedModel)
 class TrainedModelAdmin(admin.ModelAdmin):
-    list_display = ['id', 'get_user_email', 'training_id', 'status', 'created_at']
+    list_display = ['id', 'get_user_email', 'training_id', 'status', 'created_at','image_url']
     
     def get_user_email(self, obj):
         return obj.user.email

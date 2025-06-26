@@ -24,6 +24,18 @@ class GeneratedImageView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request):
+        image_id = request.data.get('id')  # or use `request.query_params.get('id')` for query param
+        if not image_id:
+            return Response({"detail": "Image ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            image = GeneratedImage.objects.get(id=image_id, user=request.user)
+            image.delete()
+            return Response({"detail": "Image deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except GeneratedImage.DoesNotExist:
+            return Response({"detail": "Image not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ProcessedImageView(APIView):

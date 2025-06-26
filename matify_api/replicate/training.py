@@ -1,23 +1,25 @@
-       
 import uuid
-from rest_framework.permissions import IsAuthenticated
-import boto3
 import os
-from rest_framework.parsers import MultiPartParser ,JSONParser ,  FormParser
+import boto3
+from io import BytesIO
+from zipfile import ZipFile
+
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
+
+from dotenv import load_dotenv
 import requests
 
 from matify_api.models import TrainedModel
-from dotenv import load_dotenv
+
 load_dotenv()
-token = os.getenv("REPLICATE_TOKEN")
-segmind_api_key = os.getenv('SEGMIND_API_KEY')
 
-
-print(os.getenv('AWS_S3_REGION_NAME'))
-
-def getzipfile_publicurl(zip_file):
+# --------------------------
+# Helper: Upload file to S3
+# --------------------------
+def upload_file_to_s3(file_obj, filename, content_type):
     try:
         s3 = boto3.client(
             's3',
@@ -26,21 +28,20 @@ def getzipfile_publicurl(zip_file):
             region_name=os.getenv("AWS_S3_REGION_NAME")
         )
 
-        file_key = f"{uuid.uuid4().hex}_{zip_file.name}"
+        file_key = f"{uuid.uuid4().hex}_{filename}"
 
         s3.upload_fileobj(
-        zip_file,
-        os.getenv('AWS_STORAGE_BUCKET_NAME'),
-        file_key,
-        ExtraArgs={'ContentType': zip_file.content_type} 
-    )
+            file_obj,
+            os.getenv('AWS_STORAGE_BUCKET_NAME'),
+            file_key,
+            ExtraArgs={'ContentType': content_type}
+        )
 
         public_url = (
             f"https://{os.getenv('AWS_STORAGE_BUCKET_NAME')}.s3."
             f"{os.getenv('AWS_S3_REGION_NAME')}.amazonaws.com/{file_key}"
         )
         return public_url
-
     except Exception as e:
         print("ERROR uploading to S3:", str(e))
         import traceback
@@ -48,23 +49,56 @@ def getzipfile_publicurl(zip_file):
         return None
 
 
+# --------------------------
+# View: Model Training
+# --------------------------
 class ReplicateModelTrainingView(APIView):
     parser_classes = [MultiPartParser]
-   
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        zip_file = request.FILES.get("zip_file")
+        zip_file_upload = request.FILES.get("zip_file")
         trigger_word = request.data.get("trigger_word")
 
-        if not zip_file or not trigger_word:
+        if not zip_file_upload or not trigger_word:
             return Response({"error": "Missing zip file or trigger word"}, status=400)
 
-        #  Upload to S3
-        image_url_s3 = getzipfile_publicurl(zip_file)
-        if not image_url_s3:
-            return Response({"error": "Failed to upload zip to S3"}, status=500)
+        # Read ZIP file into memory
+        zip_bytes = zip_file_upload.read()
+        zip_file_for_s3 = BytesIO(zip_bytes)
+        zip_file_for_extract = BytesIO(zip_bytes)
 
-        #  Prepare Replicate API call
+        # Upload ZIP to S3
+        zip_file_url = upload_file_to_s3(
+            file_obj=zip_file_for_s3,
+            filename=zip_file_upload.name,
+            content_type=zip_file_upload.content_type
+        )
+
+        if not zip_file_url:
+            return Response({"error": "Failed to upload ZIP to S3"}, status=500)
+
+        # Extract first image from ZIP and upload it
+        first_image_url = None
+        try:
+            with ZipFile(zip_file_for_extract, 'r') as zip_ref:
+                for name in zip_ref.namelist():
+                    if name.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                        with zip_ref.open(name) as image_file:
+                            image_bytes = BytesIO(image_file.read())
+                            first_image_url = upload_file_to_s3(
+                                image_bytes,
+                                filename=name,
+                                content_type='image/jpeg'  # Optional: determine dynamically
+                            )
+                        break
+        except Exception as e:
+            print("Error extracting image from ZIP:", str(e))
+
+        if not first_image_url:
+            return Response({"error": "No image found in ZIP"}, status=400)
+
+        # Prepare Replicate API call
         headers = {
             "Authorization": f"Token {os.getenv('REPLICATE_TOKEN')}",
             "Content-Type": "application/json"
@@ -79,7 +113,7 @@ class ReplicateModelTrainingView(APIView):
                 "batch_size": 1,
                 "resolution": "512,768,1024",
                 "autocaption": True,
-                "input_images": image_url_s3,
+                "input_images": zip_file_url,
                 "trigger_word": trigger_word,
                 "learning_rate": 0.0004,
                 "wandb_project": "flux_train_replicate",
@@ -100,39 +134,34 @@ class ReplicateModelTrainingView(APIView):
 
         try:
             res = requests.post(replicate_url, headers=headers, json=payload)
-            print(" Replicate Response:", res.status_code, res.text)
+            print("Replicate Response:", res.status_code, res.text)
 
             if res.ok:
-                if res.ok:
-                    response_json = res.json()
-                    training_id = response_json.get("id")
-                    version_id = response_json.get("version")  # often None initially
-                    status = response_json.get("status", "starting")
-                    created_at = response_json.get('created_at')
+                response_json = res.json()
+                training_id = response_json.get("id")
+                version_id = response_json.get("version")
+                status = response_json.get("status", "starting")
+                created_at = response_json.get("created_at")
 
-                    # ✅ Save training record to database
-                    TrainedModel.objects.create(
-                        user=request.user,
-                        training_id=training_id,
-                        version_id=version_id,
-                        status=status,
-                        trigger_word=trigger_word,
-                       
-                        created_at = created_at
-                    )
+                # Save training info to DB
+                TrainedModel.objects.create(
+                    user=request.user,
+                    training_id=training_id,
+                    version_id=version_id,
+                    status=status,
+                    trigger_word=trigger_word,
+                    created_at=created_at,
+                    image_url=first_image_url
+                )
 
-                return Response(res.json())
-            
+                return Response(response_json)
+
             else:
                 return Response({
                     "error": "Replicate API failed",
                     "status": res.status_code,
                     "details": res.text
                 }, status=500)
+
         except Exception as e:
             return Response({"error": str(e)}, status=500)
-        
-        
-
-
-

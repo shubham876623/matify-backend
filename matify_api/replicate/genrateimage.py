@@ -37,7 +37,7 @@ class ReplicatePredictionView(APIView):
         # Extract data
         version = request.data.get("version").split(":")[1]
         input_data = request.data.get("input")
-        print(version)
+       
         if not version or not input_data:
             return Response(
                 {"error": "Both 'version' and 'input' are required."},
@@ -50,15 +50,28 @@ class ReplicatePredictionView(APIView):
             "Prefer": "wait"
         }
         input_data["num_inference_steps"] = 50
-        # input_data["model"] = "dev"
-       
+        
+        if "jpeg" in  input_data['format'] :
+            input_data["output_format"] = "jpg"
+        else:
+            input_data["output_format"] = input_data['format']
         payload = {
             "version": version,
             "input":input_data
         }
-
+        
+        input_data["lora_scale"]= 1
+        input_data["megapixels"]= "1"
+        input_data["guidance_scale"]= 3
+        input_data["output_quality"]= 80
+        input_data["prompt_strength"]= 0.8
+        input_data["extra_lora_scale"]=1
+        input_data["go_fast"]= False
+        
+        print(payload ,"payload")
         try:
             r = requests.post("https://api.replicate.com/v1/predictions", json=payload, headers=headers)
+            print(r.text)
             r.raise_for_status()
             response_data = r.json()
             s3_url = upload_file_to_s3(response_data['output'][0])
